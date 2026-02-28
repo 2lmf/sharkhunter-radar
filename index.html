@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="hr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SharkHunter | Ultimate Deal Finder</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600&display=swap"
+        rel="stylesheet">
+    <meta name="theme-color" content="#050b14">
+</head>
+
+<body>
+    <div class="glass-bg"></div>
+
+    <header>
+        <div class="header-content">
+            <h1 class="retro-title">SHARK<span>HUNTER</span></h1>
+            <div class="status-badge" id="scan-status">SCANNING</div>
+        </div>
+    </header>
+
+    <main id="app-container">
+        <!-- Radar Section -->
+        <section class="radar-section">
+            <div class="radar-circle outer"></div>
+            <div class="radar-circle inner"></div>
+            <div class="radar-circle core"></div>
+            <div class="radar-cross"></div>
+            <div class="radar-sweep"></div>
+            <!-- Dynamic Pulse Points will appear here -->
+            <div id="radar-hit-container"></div>
+        </section>
+
+        <!-- Dashboard: Active Missions -->
+        <div class="dashboard-grid" id="missions-grid">
+            <!-- Cards will be injected by app.js -->
+            <div class="hunt-card">
+                <div class="card-header">
+                    <h2>BMW SERIJA 3</h2>
+                    <span class="status-badge">AKTIVNO</span>
+                </div>
+                <div class="card-details">
+                    <div class="detail-item">
+                        <span class="detail-label">BUDŽET</span>
+                        <span class="detail-value">25.000 €</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">KM</span>
+                        <span class="detail-value">&lt; 150.000</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">GODINA</span>
+                        <span class="detail-value">2018+</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">LOKACIJA</span>
+                        <span class="detail-value">Zagreb + 50km</span>
+                    </div>
+                </div>
+                <div class="shark-rating">
+                    <span class="rating-score">8.5</span>
+                    <div class="rating-bar-container">
+                        <div class="rating-bar" style="width: 85%"></div>
+                    </div>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--accent-cyan); text-align: right;">ZADNJA PROVJERA: PRIJE 2 MIN
+                </p>
+            </div>
+        </div>
+
+        <button class="btn-add" id="btn-new-mission">+</button>
+    </main>
+
+    <!-- Modal: New Mission (Simplified for now) -->
+    <div id="modal-mission" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="retro-title">NOVA <span>MISIJA</span></h2>
+            <!-- Form logic will go here -->
+        </div>
+    </div>
+
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-view="radar">
+            <span class="icon">📡</span>
+            <span class="label">Radar</span>
+        </button>
+        <button class="tab-btn" data-view="plijen">
+            <span class="icon">🦈</span>
+            <span class="label">Plijen</span>
+        </button>
+        <button class="tab-btn" data-view="postavke">
+            <span class="icon">⚙️</span>
+            <span class="label">Postavke</span>
+        </button>
+    </nav>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
