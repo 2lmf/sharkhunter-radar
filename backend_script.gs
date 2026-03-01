@@ -11,35 +11,71 @@ const WHATSAPP_API_KEY = "6205398";
 // 1. SETUP I MENI (Tvoj originalni dio)
 // ============================================================
 
+/**
+ * 🦈 SharkHunter onEdit Trigger
+ * Omogućuje multi-select u samoj ćeliji (stupac I).
+ * Ako odabereš novu županiju, on je dodaje na postojeću (umjesto da je zamijeni).
+ */
+function onEdit(e) {
+  const sheet = e.source.getActiveSheet();
+  const range = e.range;
+  
+  // Samo za tab 'Misije' (ili kako god se zvao prvi tab) i stupac I (9)
+  if (range.getColumn() === 9 && range.getRow() > 1) {
+    const newValue = e.value;
+    const oldValue = e.oldValue;
+    
+    // Ako se briše sadržaj, ne radi ništa
+    if (!newValue || newValue === "") return;
+    
+    // Ako već imamo stare vrijednosti, dodajemo nove
+    if (oldValue && oldValue !== "") {
+      // Provjeri je li već unutra da ne duplamo
+      if (oldValue.indexOf(newValue) === -1) {
+        range.setValue(oldValue + ", " + newValue);
+      } else {
+        // Ako je već unutra, a korisnik je opet kliknuo, možda je želi maknuti? 
+        // Za sad ostavljamo ovako, multi-select dropdown standard.
+        range.setValue(oldValue);
+      }
+    }
+  }
+}
+
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('🦈 SharkHunter')
     .addItem('Pripremi Tablicu (v2.5)', 'setupSheet')
-    .addItem('Odaberi Županije', 'showCountySidebar')
+    .addItem('Odaberi Županije (Sidebar)', 'showCountySidebar')
     .addToUi();
 }
 
 function setupSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // Tab: Misije
+  // Pokušaj naći tab 'Misije', ako ne postoji uzmi prvi
   let sheet = ss.getSheetByName('Misije') || ss.getSheets()[0];
-  if (sheet.getName() !== 'Misije') sheet.setName('Misije');
   
   const headers = ["Naslov", "Budžet", "Kategorija", "KM_Max", "Godište_Min", "KS", "Ključna_Riječ", "Lokacija", "Županije"];
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#00f2ff");
   
-  // Validacija Kategorije (Dodano "ostalo")
+  // Provjera zaglavlja - ne brišemo sve ako već postoji, samo provjeravamo
+  const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  if (currentHeaders[0] === "") {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#00f2ff");
+  }
+  
+  // Validacija Kategorije (Dodano "ostalo") - postavljamo da ne blokira unos
   const categoryRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(["auto", "nekretnina", "zemljiste", "ostalo"])
+    .setAllowInvalid(true)
     .build();
   sheet.getRange("C2:C100").setDataValidation(categoryRule);
   
-  // Validacija Županija (Pojedinačni odabir za ćeliju, Sidebar služi za Multi)
+  // Validacija Županija - KLJUČNO: setAllowInvalid(true) i makni strict warning
   const regions = ["Austrija", "Beč", "Grad Zagreb", "Zagrebačka", "Krapinsko-zagorska", "Sisačko-moslavačka", "Karlovačka", "Varaždinska", "Koprivničko-križevačka", "Bjelovarsko-bilogorska", "Primorsko-goranska", "Ličko-senjska", "Virovitičko-podravska", "Požeško-slavonska", "Brodsko-posavska", "Zadarska", "Osječko-baranjska", "Šibensko-kninska", "Vukovarsko-srijemska", "Splitsko-dalmatinska", "Istarska", "Dubrovačko-neretvanska", "Međimurska"];
   const regionRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(regions)
-    .setAllowInvalid(true) // Dopušta multi-select iz sidebara
+    .setAllowInvalid(true)
     .build();
   sheet.getRange("I2:I100").setDataValidation(regionRule);
 
