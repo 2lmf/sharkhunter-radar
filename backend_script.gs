@@ -187,6 +187,17 @@ function startHunting() {
   });
 }
 
+function isTitleRelevant(title, query) {
+  if (!query) return true;
+  // Pretvori u mala slova i razdvoji riječi po razmacima (ako korisnik upiše "Vw passat")
+  const titleLower = title.toLowerCase();
+  const keywords = query.toLowerCase().split(/\s+/);
+  
+  // Oglas mora sadržavati BAREM JEDNU od ključnih riječi (ili sve, ako želimo biti super strogi)
+  // Za početak, tražimo da sadrži glavnu riječ. Zbog "vw passat", bolje provjeriti sve.
+  return keywords.every(kw => titleLower.includes(kw));
+}
+
 // --- NJUŠKALO LOVAC (Univerzalni za sve) ---
 function huntNjuskalo(mission) {
   const query = mission.ključna_riječ || mission.naslov;
@@ -222,7 +233,7 @@ function huntNjuskalo(mission) {
       if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
       let adTitle = match[2].replace(/<[^>]*>/g, '').trim(); // Čisti HTML tagove unutar naslova
       
-      if (isNewAd(adUrl)) {
+      if (isNewAd(adUrl) && isTitleRelevant(adTitle, query)) {
         foundCount++;
         saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo");
         sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
@@ -237,7 +248,7 @@ function huntNjuskalo(mission) {
         if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
         let adTitle = match[2].replace(/<[^>]*>/g, '').trim();
         
-        if (isNewAd(adUrl)) {
+        if (isNewAd(adUrl) && isTitleRelevant(adTitle, query)) {
           foundCount++;
           saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo Alt");
           sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
@@ -251,13 +262,13 @@ function huntNjuskalo(mission) {
 function huntAutoScout24(mission) {
   let baseUrl = "https://www.autoscout24.at/lst";
   
-  // Ako je odabran Beč, suzimo pretragu na taj grad
   if (mission.županije && mission.županije.includes("Beč")) {
     baseUrl += "/wien";
   }
   
   let url = baseUrl + "?sort=age&desc=1&cy=A&powertype=hp";
-  if (mission.naslov) url += "&q=" + encodeURIComponent(mission.naslov);
+  const query = mission.naslov || mission.ključna_riječ;
+  if (query) url += "&q=" + encodeURIComponent(query);
   if (mission.budžet) url += "&priceto=" + mission.budžet;
   if (mission.godište_min) url += "&fregfrom=" + mission.godište_min;
   
@@ -272,7 +283,7 @@ function huntAutoScout24(mission) {
       let adUrl = "https://www.autoscout24.at" + match[1];
       let adTitle = match[2].trim();
       
-      if (isNewAd(adUrl)) {
+      if (isNewAd(adUrl) && isTitleRelevant(adTitle, query)) {
         foundCount++;
         saveNewAd(adTitle, adUrl, "auto", "AutoScout24");
         sendWhatsAppNotification(`🦈 NOVI AUTO ULOV (Austrija)!\n🎯 Misija: ${mission.naslov}\n🚗 ${adTitle}\n🔗 ${adUrl}`);
