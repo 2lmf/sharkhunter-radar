@@ -59,6 +59,7 @@ function onOpen() {
     .addItem('Odaberi Županije (Sidebar)', 'showCountySidebar')
     .addSeparator()
     .addItem('🚀 POKRENI LOV ODMAH', 'startHunting')
+    .addItem('🛠️ DEBUG NJUŠKALO HTML', 'debugNjuskalo')
     .addToUi();
 }
 
@@ -119,6 +120,35 @@ function processCounties(selection) {
   const range = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getActiveCell();
   if (range.getColumn() === 9) range.setValue(selection);
   else SpreadsheetApp.getUi().alert("Stani u stupac 'Županije' (stupac I) prije pokretanja sidebara!");
+}
+
+/**
+ * DEBUG FUNKCIJA: Prvih 2000 znakova s Njuškala sprema u Bazu da vidimo što zapravo vraća
+ */
+function debugNjuskalo() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const dbSheet = ss.getSheetByName('Baza_Oglasa');
+  
+  const url = "https://www.njuskalo.hr/?ctl=search_ads&keywords=bicikl";
+  try {
+    const response = UrlFetchApp.fetch(url, { 
+      "muteHttpExceptions": true,
+      "headers": { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+      }
+    });
+    
+    const code = response.getResponseCode();
+    let html = response.getContentText().substring(0, 3000); // Prvih 3000 znakova
+    
+    dbSheet.insertRowBefore(2);
+    dbSheet.getRange(2, 1, 1, 7).setValues([[Date.now(), "DEBUG-HTML-KOD-" + code, "0", "debug", html, "---", url]]);
+    
+    SpreadsheetApp.getUi().alert("Debug završen. Pogledaj redak 2 u Baza_Oglasa. Kod: " + code);
+  } catch (e) {
+    SpreadsheetApp.getUi().alert("Greška kod spajanja: " + e.toString());
+  }
 }
 
 function getMissionsFromSheet() {
