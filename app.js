@@ -12,25 +12,7 @@ const TARGET_SHEET_ID = "1w-iMtoqufPtzE6n8UX_aaqNvqcr9rtwFexW7ZkEiXow";
 const DEFAULT_SYNC_URL = "https://script.google.com/macros/s/AKfycbxvJsWlcHGP0V2s-vr9suj6cgRd0HJUe_ZCeSM6v9BQFds9abphVANYnxuvw0ijy9yr/exec";
 
 let missions = [];
-let localMissions = [
-    {
-        id: "m0",
-        title: "BMW SERIJA 3",
-        get category() { return "auto" },
-        status: "AKTIVNO",
-        budget: 25000,
-        kmMax: 150000,
-        yearMin: 2018,
-        powerKS: 150,
-        keyword: "M-Paket",
-        location: "Zagreb + 50km",
-        platform: "Sve",
-        region: "Hrvatska",
-        counties: [],
-        rating: 8.5,
-        lastCheck: "2 min"
-    }
-];
+let localMissions = [];
 
 let cloudMissions = [];
 let prey = [];
@@ -290,9 +272,12 @@ function renderMissions() {
     if (!grid) return;
     grid.innerHTML = missions.map(m => `
         <div class="hunt-card ${m.isCloud ? 'cloud-card' : ''}">
-            <div class="card-header">
-                <h2>${m.title}</h2>
-                <span class="status-badge ${m.isCloud ? '' : 'pulse'}">${m.status}</span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h2>${m.title}</h2>
+                    <span class="status-badge ${m.isCloud ? '' : 'pulse'}">${m.status}</span>
+                </div>
+                ${!m.isCloud ? `<button style="background:none; border:none; color:var(--accent-red); cursor:pointer; font-size:1.2rem; padding: 0 5px;" onclick="deleteMission('${m.id}')" title="Izbriši">×</button>` : ''}
             </div>
             <div class="card-details">
                 <div class="detail-item">
@@ -417,7 +402,7 @@ function simulateDiscovery() {
         price: cat === 'auto' ? 26000 : 185000,
         desc: `${keyword} - Meč pronađen prema tvojim kriterijima.`,
         rating: (Math.random() * 2 + 7.8).toFixed(1),
-        url: "#",
+        url: cat === 'auto' ? "https://www.autoscout24.hr/" : "https://www.njuskalo.hr/",
         isNew: true
     };
 
