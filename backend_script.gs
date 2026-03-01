@@ -131,49 +131,48 @@ function getMissionsFromSheet() {
   });
 }
 
-/**
- * GLAVNA FUNKCIJA ZA LOV
- * Ovu funkciju treba postaviti na Trigger (Triggers > Add Trigger > Time-driven)
- */
 function startHunting() {
   const missions = getMissionsFromSheet();
   Logger.log("Pokrećem lov na " + missions.length + " misija...");
   
   missions.forEach(mission => {
+    // 1. NJUŠKALO: Traži sve (auti, bicikli, nekretnine...) na domaćem terenu
+    huntNjuskalo(mission);
+
+    // 2. AUTOSCOUT24: Samo za aute i samo ako je odabrana Austrija ili Beč
     if (mission.kategorija === 'auto') {
-      huntAutoScout24(mission);
-    } 
-    else if (mission.kategorija === 'ostalo' || mission.kategorija === 'nekretnina' || mission.kategorija === 'zemljiste') {
-      // Za ostale kategorije koristimo Njuškalo pretragu po ključnoj riječi
-      huntNjuskalo(mission);
+      const zupanije = mission.županije || "";
+      if (zupanije.includes("Austrija") || zupanije.includes("Beč")) {
+        huntAutoScout24(mission);
+      }
     }
   });
 }
 
-// --- NJUŠKALO LOVAC (Ostalo, Nekretnine, Bicikli...) ---
+// --- NJUŠKALO LOVAC (Univerzalni za sve) ---
 function huntNjuskalo(mission) {
   const query = mission.ključna_riječ || mission.naslov;
   if (!query) return;
 
-  // Primjer: https://www.njuskalo.hr/searcher/alphabetical?keywords=bicikl&price[max]=2000
   let url = "https://www.njuskalo.hr/searcher/alphabetical?keywords=" + encodeURIComponent(query);
   if (mission.budžet) url += "&price%5Bmax%5D=" + mission.budžet;
+  
+  // Dodatni filter za Njuškalo (županije) - bazična podrška ako je odabrana samo jedna
+  // Napomena: Njuškalo koristi interne ID-ove za županije, pa je globalna pretraga po keywordu sigurnija
   
   try {
     const response = UrlFetchApp.fetch(url, { 
       "muteHttpExceptions": true,
-      "headers": { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+      "headers": { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" }
     });
     const html = response.getContentText();
-    
-    // Vrlo bazičan Regex za izvlačenje naslova i linkova (Njuškalo često mijenja strukturu)
-    // Tražimo linkove u <h3 class="entity-title">
     const adRegex = /<h3 class="entity-title">\s*<a.*?href="(.*?)".*?>(.*?)<\/a>/g;
     let match;
     let foundCount = 0;
 
     while ((match = adRegex.exec(html)) !== null && foundCount < 5) {
-      let adUrl = "https://www.njuskalo.hr" + match[1];
+      let adUrl = match[1];
+      if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
       let adTitle = match[2].trim();
       
       if (isNewAd(adUrl)) {
@@ -182,14 +181,19 @@ function huntNjuskalo(mission) {
         sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
       }
     }
-  } catch (e) {
-    Logger.log("Njuškalo Error: " + e.toString());
-  }
+  } catch (e) { Logger.log("Njuškalo Error: " + e.toString()); }
 }
 
-// --- AUTOSCOUT24 LOVAC (Auti) ---
+// --- AUTOSCOUT24 LOVAC (Samo Austrija/Beč) ---
 function huntAutoScout24(mission) {
-  let url = "https://www.autoscout24.at/lst?sort=age&desc=1&cy=A&powertype=hp";
+  let baseUrl = "https://www.autoscout24.at/lst";
+  
+  // Ako je odabran Beč, suzimo pretragu na taj grad
+  if (mission.županije && mission.županije.includes("Beč")) {
+    baseUrl += "/wien";
+  }
+  
+  let url = baseUrl + "?sort=age&desc=1&cy=A&powertype=hp";
   if (mission.naslov) url += "&q=" + encodeURIComponent(mission.naslov);
   if (mission.budžet) url += "&priceto=" + mission.budžet;
   if (mission.godište_min) url += "&fregfrom=" + mission.godište_min;
@@ -197,8 +201,6 @@ function huntAutoScout24(mission) {
   try {
     const response = UrlFetchApp.fetch(url, { "muteHttpExceptions": true });
     const html = response.getContentText();
-    
-    // Regex za AutoScout (naslov i link)
     const adRegex = /<a.*?href="(\/offers\/.*?)".*?title="(.*?)">/g;
     let match;
     let foundCount = 0;
@@ -210,12 +212,10 @@ function huntAutoScout24(mission) {
       if (isNewAd(adUrl)) {
         foundCount++;
         saveNewAd(adTitle, adUrl, "auto", "AutoScout24");
-        sendWhatsAppNotification(`🦈 NOVI AUTO ULOV!\n🎯 Misija: ${mission.naslov}\n🚗 ${adTitle}\n🔗 ${adUrl}`);
+        sendWhatsAppNotification(`🦈 NOVI AUTO ULOV (Austrija)!\n🎯 Misija: ${mission.naslov}\n🚗 ${adTitle}\n🔗 ${adUrl}`);
       }
     }
-  } catch (e) {
-    Logger.log("AutoScout Error: " + e.toString());
-  }
+  } catch (e) { Logger.log("AutoScout Error: " + e.toString()); }
 }
 
 function isNewAd(adUrl) {
