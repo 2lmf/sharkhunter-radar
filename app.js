@@ -1,4 +1,4 @@
-// SharkHunter v2.2 - Google Sheets Cloud Sync
+// SharkHunter v2.5 - Real Data Sync
 const COUNTIES = [
     "Austrija", "Beč", "Grad Zagreb", "Zagrebačka", "Krapinsko-zagorska", "Sisačko-moslavačka",
     "Karlovačka", "Varaždinska", "Koprivničko-križevačka", "Bjelovarsko-bilogorska",
@@ -13,16 +13,18 @@ const DEFAULT_SYNC_URL = "https://script.google.com/macros/s/AKfycbxvJsWlcHGP0V2
 
 let missions = [];
 let localMissions = [];
-
 let cloudMissions = [];
 let prey = [];
 let currentFilter = 'all';
 let syncUrl = localStorage.getItem('sharkhunter_sync_url') || DEFAULT_SYNC_URL;
+let isRefreshing = false;
 
 // Elements
 const modal = document.getElementById('modal-mission');
 const btnAdd = document.getElementById('btn-new-mission');
+const btnRefresh = document.getElementById('btn-refresh');
 const preyCountBadge = document.getElementById('prey-count');
+const scanStatus = document.getElementById('scan-status');
 
 // Initialize UI
 document.addEventListener('DOMContentLoaded', () => {
@@ -35,8 +37,36 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initFilters();
 
-    if (syncUrl) fetchCloudMissions();
+    if (btnRefresh) {
+        btnRefresh.onclick = () => refreshAllData();
+    }
+
+    if (syncUrl) refreshAllData();
 });
+
+async function refreshAllData() {
+    if (isRefreshing) return;
+    isRefreshing = true;
+    if (scanStatus) scanStatus.textContent = "SYNCING...";
+    if (btnRefresh) btnRefresh.classList.add('pulse');
+
+    try {
+        await Promise.all([
+            fetchCloudMissions(),
+            fetchCloudPrey()
+        ]);
+        if (scanStatus) scanStatus.textContent = "ONLINE";
+    } catch (err) {
+        console.error("Sync error:", err);
+        if (scanStatus) scanStatus.textContent = "OFFLINE";
+    } finally {
+        isRefreshing = false;
+        if (btnRefresh) btnRefresh.classList.remove('pulse');
+        setTimeout(() => {
+            if (scanStatus && scanStatus.textContent === "ONLINE") scanStatus.textContent = "SCANNING";
+        }, 3000);
+    }
+}
 
 function initSettings() {
     const header = document.querySelector('.header-content');
@@ -49,11 +79,7 @@ function initSettings() {
         if (url !== null) {
             syncUrl = url;
             localStorage.setItem('sharkhunter_sync_url', url);
-            if (url) fetchCloudMissions();
-            else {
-                cloudMissions = [];
-                updateMissionsList();
-            }
+            refreshAllData();
         }
     };
     header.appendChild(settingsBtn);
@@ -62,12 +88,12 @@ function initSettings() {
 async function fetchCloudMissions() {
     if (!syncUrl) return;
     try {
-        const response = await fetch(syncUrl);
+        const response = await fetch(syncUrl + "?action=getMissions");
         const data = await response.json();
         if (data.error) throw new Error(data.error);
 
         cloudMissions = data.map((m, i) => ({
-            id: "cloud-" + i,
+            id: "cloud-m-" + i,
             title: (m.naslov || "BEZ NASLOVA").toUpperCase(),
             category: m.kategorija || "auto",
             budget: parseInt(m.budžet) || 0,
@@ -84,8 +110,34 @@ async function fetchCloudMissions() {
         updateMissionsList();
         console.log("Cloud missions synced:", cloudMissions);
     } catch (err) {
-        console.error("Cloud sync failed:", err);
-        // Ne izbacuj alert stalno ako nije konfigurirano ispravno
+        console.error("Cloud missions sync failed:", err);
+    }
+}
+
+async function fetchCloudPrey() {
+    if (!syncUrl) return;
+    try {
+        const response = await fetch(syncUrl + "?action=getPrey");
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        const oldPreyIds = new Set(prey.map(p => p.id));
+
+        prey = data.map((p, i) => ({
+            id: p.id || "cloud-p-" + i,
+            title: p.naslov || "Pronađen oglas",
+            category: p.kategorija || "ostalo",
+            price: parseInt(p.cijena) || 0,
+            desc: p.opis || "Nema opisa.",
+            rating: p.ocjena || (Math.random() * 2 + 7.8).toFixed(1),
+            url: p.link || "#",
+            isNew: !oldPreyIds.has(p.id || "cloud-p-" + i) && prey.length > 0
+        }));
+
+        renderPrey();
+        updatePreyCount();
+    } catch (err) {
+        console.error("Cloud prey sync failed:", err);
     }
 }
 
@@ -109,11 +161,12 @@ function initModal() {
                         <option value="auto">Automobili 🚗</option>
                         <option value="nekretnina">Nekretnine 🏠</option>
                         <option value="zemljiste">Zemljišta 🌲</option>
+                        <option value="ostalo">Ostalo 🦈</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>NAZIV POTRAGE</label>
-                    <input type="text" id="mission-title" class="shark-input" required placeholder="npr. BMW 3, Stan Jarun...">
+                    <input type="text" id="mission-title" class="shark-input" required placeholder="npr. BMW 3, Stan Jarun, Mobiteli...">
                 </div>
                 
                 <div id="dynamic-fields">
@@ -134,7 +187,7 @@ function initModal() {
 
                 <button type="submit" class="btn-hunt">POKRENI LOKALNI LOV 🦈</button>
                 <div style="font-size: 0.6rem; color: var(--text-dim); text-align: center; margin-top: 1rem;">
-                    * Za unos u Cloud koristite Tablicu: <br> ${TARGET_SHEET_ID}
+                    * Cloud Sinkronizacija: <br> ${TARGET_SHEET_ID}
                 </div>
             </form>
         </div>
@@ -158,7 +211,6 @@ function initModal() {
         saveMission(form);
     };
 
-    // Initial call
     updateFormFields('auto', dynFields);
 }
 
@@ -191,6 +243,17 @@ function updateFormFields(category, container) {
         `;
         countyArea.innerHTML = '';
         locGroup.style.display = 'block';
+    } else if (category === 'ostalo') {
+        container.innerHTML = `
+            <div class="form-row">
+                <div class="form-group">
+                    <label>BUDŽET (€)</label>
+                    <input type="number" id="mission-budget" class="shark-input" placeholder="1000">
+                </div>
+            </div>
+        `;
+        countyArea.innerHTML = '';
+        locGroup.style.display = 'none';
     } else {
         container.innerHTML = `
             <div class="form-row">
@@ -230,14 +293,15 @@ function updateFormFields(category, container) {
                 btnSelectAll.textContent = allChecked ? "Označi sve" : "Odznači sve";
             };
         }
+        locGroup.style.display = 'block';
     }
 }
 
-function saveMission(form) {
+async function saveMission(form) {
     const title = document.getElementById('mission-title').value;
     const category = document.getElementById('mission-category').value;
     const budget = document.getElementById('mission-budget').value;
-    const location = document.getElementById('mission-location').value;
+    const location = document.getElementById('mission-location')?.value || "";
     const keyword = document.getElementById('mission-keyword').value;
 
     const selectedCounties = Array.from(document.querySelectorAll('.county-checkbox:checked')).map(cb => cb.value);
@@ -265,6 +329,21 @@ function saveMission(form) {
     updateMissionsList();
     modal.classList.add('hidden');
     form.reset();
+
+    // Push to Cloud if enabled
+    if (syncUrl) {
+        try {
+            await fetch(syncUrl, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "addMission", mission: newMission })
+            });
+            console.log("Local mission pushed to cloud.");
+        } catch (err) {
+            console.error("Cloud push failed:", err);
+        }
+    }
 }
 
 function renderMissions() {
@@ -277,7 +356,7 @@ function renderMissions() {
                     <h2>${m.title}</h2>
                     <span class="status-badge ${m.isCloud ? '' : 'pulse'}">${m.status}</span>
                 </div>
-                ${!m.isCloud ? `<button style="background:none; border:none; color:var(--accent-red); cursor:pointer; font-size:1.2rem; padding: 0 5px;" onclick="deleteMission('${m.id}')" title="Izbriši">×</button>` : ''}
+                ${!m.isCloud ? `<button style="background:none; border:none; color:var(--accent-red); cursor:pointer; font-size:1.2rem; padding: 0 5px;" onclick="deleteMission('${m.id}')">×</button>` : ''}
             </div>
             <div class="card-details">
                 <div class="detail-item">
@@ -293,6 +372,7 @@ function renderMissions() {
                 ${m.isCloud ? '<span class="card-tag" style="background: rgba(46, 204, 113, 0.2); color: #2ecc71;">☁️ Google Sheet Sync</span>' : ''}
                 ${m.counties && m.counties.length > 0 ? m.counties.slice(0, 2).map(c => `<span class="card-tag">${c}</span>`).join('') : ''}
                 ${m.keyword ? `<span class="card-tag" style="background: rgba(243, 156, 18, 0.1); color: var(--accent-gold);">#${m.keyword}</span>` : ''}
+                <span class="card-tag" style="text-transform: uppercase;">${m.category}</span>
             </div>
 
             <div class="shark-rating">
@@ -305,10 +385,20 @@ function renderMissions() {
     `).join('');
 }
 
+window.deleteMission = (id) => {
+    localMissions = localMissions.filter(m => m.id !== id);
+    updateMissionsList();
+};
+
 function renderPrey() {
     const grid = document.getElementById('prey-grid');
     if (!grid) return;
     const filtered = currentFilter === 'all' ? prey : prey.filter(p => p.category === currentFilter);
+
+    if (filtered.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-dim);">Nema pronađenog plijena za odabranu kategoriju.</div>`;
+        return;
+    }
 
     grid.innerHTML = filtered.map(p => `
         <div class="hunt-card prey-card ${p.isNew ? 'new-hit' : ''}">
@@ -316,10 +406,10 @@ function renderPrey() {
                 <h2>${p.title}</h2>
                 <div style="display: flex; flex-direction: column; align-items: flex-end;">
                     <span class="status-badge" style="background: var(--accent-gold); color: #000; margin-bottom: 5px;">${p.price.toLocaleString()} €</span>
-                    <span style="font-size: 0.6rem; color: var(--accent-cyan); font-family: Orbitron;">Oglas</span>
+                    <span style="font-size: 0.6rem; color: var(--accent-cyan); font-family: Orbitron; text-transform: uppercase;">${p.category}</span>
                 </div>
             </div>
-            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.5rem;">${p.desc}</p>
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.5rem; line-height: 1.2; height: 2.4rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${p.desc}</p>
             <div class="shark-rating">
                 <span class="rating-score">${p.rating}</span>
                 <div class="rating-bar-container">
@@ -384,30 +474,6 @@ function startRadarSimulation() {
         pulse.style.left = `${x}px`;
         pulse.style.top = `${y}px`;
         hitContainer.appendChild(pulse);
-        if (Math.random() > 0.8) simulateDiscovery();
         setTimeout(() => pulse.remove(), 2000);
     }, 2500);
-}
-
-function simulateDiscovery() {
-    const categories = ['auto', 'nekretnina'];
-    const cat = categories[Math.floor(Math.random() * categories.length)];
-    const activeKeywords = missions.map(m => m.keyword).filter(k => k);
-    const keyword = activeKeywords.length > 0 ? activeKeywords[0] : "";
-
-    const newPrey = {
-        id: "p" + Date.now(),
-        title: cat === 'auto' ? "Ulovljen Auto" : "Ulovljen Stan",
-        category: cat,
-        price: cat === 'auto' ? 26000 : 185000,
-        desc: `${keyword} - Meč pronađen prema tvojim kriterijima.`,
-        rating: (Math.random() * 2 + 7.8).toFixed(1),
-        url: cat === 'auto' ? "https://www.autoscout24.hr/" : "https://www.njuskalo.hr/",
-        isNew: true
-    };
-
-    prey.unshift(newPrey);
-    updatePreyCount();
-    const plijenView = document.getElementById('view-plijen');
-    if (plijenView && !plijenView.classList.contains('hidden')) renderPrey();
 }
