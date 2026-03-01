@@ -91,11 +91,13 @@ function setupSheet() {
 
   // Tab: Baza Oglasa
   let dbSheet = ss.getSheetByName("Baza_Oglasa");
+  const dbHeaders = ["ID", "Naslov", "Cijena", "Kategorija", "Opis", "Ocjena", "Link"];
   if (!dbSheet) {
     dbSheet = ss.insertSheet("Baza_Oglasa");
-    dbSheet.appendRow(["ID", "Naslov", "Cijena", "Kategorija", "Opis", "Ocjena", "Link"]);
-    dbSheet.getRange("1:1").setFontWeight("bold").setBackground("#f39c12");
   }
+  // Osiguravamo da zaglavlja iz Baze Oglasa UVIJEK budu ispravna, jer inače aplikacija miješa ID i Linkove
+  dbSheet.getRange(1, 1, 1, dbHeaders.length).setValues([dbHeaders]);
+  dbSheet.getRange("1:1").setFontWeight("bold").setBackground("#f39c12");
   
   SpreadsheetApp.getUi().alert("✅ Tablica je spremna za v2.5!");
 }
