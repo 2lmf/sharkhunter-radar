@@ -160,18 +160,27 @@ function huntNjuskalo(mission) {
   const query = mission.ključna_riječ || mission.naslov;
   if (!query) return;
 
-  let url = "https://www.njuskalo.hr/searcher/alphabetical?keywords=" + encodeURIComponent(query);
+  // Koristimo pouzdaniji Njuškalo search URL format
+  let url = "https://www.njuskalo.hr/?ctl=search_ads&keywords=" + encodeURIComponent(query);
   if (mission.budžet) url += "&price%5Bmax%5D=" + mission.budžet;
-  
-  // Dodatni filter za Njuškalo (županije) - bazična podrška ako je odabrana samo jedna
-  // Napomena: Njuškalo koristi interne ID-ove za županije, pa je globalna pretraga po keywordu sigurnija
   
   try {
     const response = UrlFetchApp.fetch(url, { 
       "muteHttpExceptions": true,
-      "headers": { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" }
+      "headers": { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+      }
     });
+    
+    if (response.getResponseCode() !== 200) {
+      Logger.log("Njuškalo zablokirao zahtjev. Kod: " + response.getResponseCode());
+      return;
+    }
+
     const html = response.getContentText();
+    
+    // Njuškalo oglas (standardni format)
     const adRegex = /<h3 class="entity-title">\s*<a.*?href="(.*?)".*?>(.*?)<\/a>/g;
     let match;
     let foundCount = 0;
@@ -179,12 +188,28 @@ function huntNjuskalo(mission) {
     while ((match = adRegex.exec(html)) !== null && foundCount < 5) {
       let adUrl = match[1];
       if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
-      let adTitle = match[2].trim();
+      let adTitle = match[2].replace(/<[^>]*>/g, '').trim(); // Čisti HTML tagove unutar naslova
       
       if (isNewAd(adUrl)) {
         foundCount++;
         saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo");
         sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
+      }
+    }
+    
+    // Ako prvi Regex nije ništa našao (Njuškalo je znao mijenjati dizajn u article > a.link)
+    if (foundCount === 0) {
+      const altRegex = /<article.*?<a class="link" href="(.*?)"\s*title="(.*?)">/g;
+      while ((match = altRegex.exec(html)) !== null && foundCount < 5) {
+        let adUrl = match[1];
+        if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
+        let adTitle = match[2].replace(/<[^>]*>/g, '').trim();
+        
+        if (isNewAd(adUrl)) {
+          foundCount++;
+          saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo Alt");
+          sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
+        }
       }
     }
   } catch (e) { Logger.log("Njuškalo Error: " + e.toString()); }
