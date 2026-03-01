@@ -151,6 +151,10 @@ async function fetchCloudPrey() {
 }
 
 function updateMissionsList() {
+    // Deduplikacija: makni lokalne ako već postoje u cloudu (prema naslovu)
+    const cloudTitles = new Set(cloudMissions.map(m => m.title));
+    localMissions = localMissions.filter(m => !cloudTitles.has(m.title));
+
     missions = [...cloudMissions, ...localMissions];
     renderMissions();
 }
@@ -387,7 +391,12 @@ async function saveMission(form) {
             console.log("Sync request sent (no-cors mode).");
             syncBadge.style.background = "#2ecc71";
             syncBadge.textContent = "SYNC SENT! ☁️";
-            setTimeout(() => syncBadge.remove(), 3000);
+
+            // Automatski osvježi nakon 2 sekunde da povuče iz Clouda
+            setTimeout(() => {
+                syncBadge.remove();
+                refreshAllData();
+            }, 2500);
         } catch (err) {
             console.error("Cloud push failed:", err);
             syncBadge.style.background = "var(--accent-red)";
