@@ -25,62 +25,50 @@
     </header>
 
     <main id="app-container">
-        <!-- Radar Section -->
-        <section class="radar-section">
-            <div class="radar-circle outer"></div>
-            <div class="radar-circle inner"></div>
-            <div class="radar-circle core"></div>
-            <div class="radar-cross"></div>
-            <div class="radar-sweep"></div>
-            <!-- Dynamic Pulse Points will appear here -->
-            <div id="radar-hit-container"></div>
-        </section>
+        <!-- Dashboard: Radar View -->
+        <div id="view-radar">
+            <section class="radar-section">
+                <div class="radar-circle outer"></div>
+                <div class="radar-circle inner"></div>
+                <div class="radar-circle core"></div>
+                <div class="radar-cross"></div>
+                <div class="radar-sweep"></div>
+                <!-- Dynamic Pulse Points will appear here -->
+                <div id="radar-hit-container"></div>
+            </section>
 
-        <!-- Dashboard: Active Missions -->
-        <div class="dashboard-grid" id="missions-grid">
-            <!-- Cards will be injected by app.js -->
-            <div class="hunt-card">
-                <div class="card-header">
-                    <h2>BMW SERIJA 3</h2>
-                    <span class="status-badge">AKTIVNO</span>
+            <div class="section-header">
+                <h2 class="sub-title">AKTIVNE <span>MISIJE</span></h2>
+            </div>
+
+            <div class="dashboard-grid" id="missions-grid">
+                <!-- Missions will be injected by app.js -->
+            </div>
+        </div>
+
+        <!-- Dashboard: Prey View [NEW] -->
+        <div id="view-plijen" class="hidden">
+            <div class="section-header">
+                <h2 class="sub-title">PRONAĐENI <span>PLIJEN</span></h2>
+                <div class="filter-chips">
+                    <button class="chip active" data-filter="all">Sve</button>
+                    <button class="chip" data-filter="auto">Auti</button>
+                    <button class="chip" data-filter="nekretnina">Stanovi</button>
                 </div>
-                <div class="card-details">
-                    <div class="detail-item">
-                        <span class="detail-label">BUDŽET</span>
-                        <span class="detail-value">25.000 €</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">KM</span>
-                        <span class="detail-value">&lt; 150.000</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">GODINA</span>
-                        <span class="detail-value">2018+</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">LOKACIJA</span>
-                        <span class="detail-value">Zagreb + 50km</span>
-                    </div>
-                </div>
-                <div class="shark-rating">
-                    <span class="rating-score">8.5</span>
-                    <div class="rating-bar-container">
-                        <div class="rating-bar" style="width: 85%"></div>
-                    </div>
-                </div>
-                <p style="font-size: 0.7rem; color: var(--accent-cyan); text-align: right;">ZADNJA PROVJERA: PRIJE 2 MIN
-                </p>
+            </div>
+
+            <div class="dashboard-grid" id="prey-grid">
+                <!-- Discovered prey will be injected by app.js -->
             </div>
         </div>
 
         <button class="btn-add" id="btn-new-mission">+</button>
     </main>
 
-    <!-- Modal: New Mission (Simplified for now) -->
+    <!-- Modal: New Mission -->
     <div id="modal-mission" class="modal hidden">
         <div class="modal-content">
-            <h2 class="retro-title">NOVA <span>MISIJA</span></h2>
-            <!-- Form logic will go here -->
+            <!-- Form injected by app.js -->
         </div>
     </div>
 
@@ -90,7 +78,10 @@
             <span class="label">Radar</span>
         </button>
         <button class="tab-btn" data-view="plijen">
-            <span class="icon">🦈</span>
+            <div class="nav-icon-wrapper">
+                <span class="icon">🦈</span>
+                <span class="badge" id="prey-count">0</span>
+            </div>
             <span class="label">Plijen</span>
         </button>
         <button class="tab-btn" data-view="postavke">
