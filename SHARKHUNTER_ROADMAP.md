@@ -2,10 +2,11 @@
 
 Ovdje je popis onoga što planiramo u idućim verzijama kako bi SharkHunter bio broj 1 alat za lov na prilike.
 
-## 🏁 KRATKOROČNI PLAN (v2.5 - Sljedeći korak)
+## 🏁 KRATKOROČNI PLAN (v2.6 - Sljedeći korak)
 - [ ] **WhatsApp Puna Automatizacija**: Robot samostalno šalje poruku čim nađe oglas (bez tvog pritiska na gumb).
+- [ ] **Praćenje Pada Cijena (Price Drop)**: Robot te obavještava ako je nekom oglasu u bazi pala cijena za više od 5-10%.
+- [ ] **Lovac na Karte (Ticket Shark)**: Integracija za Eventim/Entrio/Njuškalo karte za koncerte i komičare.
 - [ ] **Kategorija "Ostalo"**: Lov na mobitele, alate, opremu... bilo što po ključnoj riječi.
-- [ ] **Aplikacija na Home Screenu**: Sređivanje PWA instalacije.
 - [ ] **Konkretan Plijen**: Radar u aplikaciji prikazuje prave linkove iz tvoje tablice.
 
 ## 🚀 SREDNJOROČNI PLAN (v3.0)

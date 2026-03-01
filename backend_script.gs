@@ -203,7 +203,6 @@ function huntNjuskalo(mission) {
   const query = mission.ključna_riječ || mission.naslov;
   if (!query) return;
 
-  // Koristimo pouzdaniji Njuškalo search URL format
   let url = "https://www.njuskalo.hr/?ctl=search_ads&keywords=" + encodeURIComponent(query);
   if (mission.budžet) url += "&price%5Bmax%5D=" + mission.budžet;
   
@@ -216,42 +215,40 @@ function huntNjuskalo(mission) {
       }
     });
     
-    if (response.getResponseCode() !== 200) {
-      Logger.log("Njuškalo zablokirao zahtjev. Kod: " + response.getResponseCode());
-      return;
-    }
-
+    if (response.getResponseCode() !== 200) return;
     const html = response.getContentText();
     
-    // Njuškalo oglas (standardni format)
-    const adRegex = /<h3 class="entity-title">\s*<a.*?href="(.*?)".*?>(.*?)<\/a>/g;
+    // Regex hvatamo naslov, link i cijenu
+    // Njuškalo cijena je obično u <strong class="price price--eur">...</strong>
+    const adRegex = /<article.*?<h3 class="entity-title">\s*<a.*?href="(.*?)".*?>(.*?)<\/a>.*?<strong class="price price--eur">(.*?)&nbsp;€<\/strong>/gs;
     let match;
     let foundCount = 0;
 
-    while ((match = adRegex.exec(html)) !== null && foundCount < 5) {
+    while ((match = adRegex.exec(html)) !== null && foundCount < 10) {
       let adUrl = match[1];
       if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
-      let adTitle = match[2].replace(/<[^>]*>/g, '').trim(); // Čisti HTML tagove unutar naslova
+      let adTitle = match[2].replace(/<[^>]*>/g, '').trim();
+      let adPriceRaw = match[3].replace(/[^\d]/g, ''); // Samo brojke
+      let adPrice = parseInt(adPriceRaw) || 0;
       
-      if (isNewAd(adUrl) && isTitleRelevant(adTitle, query)) {
+      if (isTitleRelevant(adTitle, query)) {
         foundCount++;
-        saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo");
-        sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
+        processAd(adTitle, adUrl, adPrice, mission.kategorija, "Njuškalo", mission.naslov);
       }
     }
     
-    // Ako prvi Regex nije ništa našao (Njuškalo je znao mijenjati dizajn u article > a.link)
+    // Alt Regex ako nema rezultata ili je drugačiji layout
     if (foundCount === 0) {
-      const altRegex = /<article.*?<a class="link" href="(.*?)"\s*title="(.*?)">/g;
-      while ((match = altRegex.exec(html)) !== null && foundCount < 5) {
+      const altRegex = /<article.*?<a class="link" href="(.*?)"\s*title="(.*?)">.*?<strong class="price price--eur">(.*?)&nbsp;€<\/strong>/gs;
+      while ((match = altRegex.exec(html)) !== null && foundCount < 10) {
         let adUrl = match[1];
         if (!adUrl.startsWith("http")) adUrl = "https://www.njuskalo.hr" + adUrl;
         let adTitle = match[2].replace(/<[^>]*>/g, '').trim();
+        let adPrice = parseInt(match[3].replace(/[^\d]/g, '')) || 0;
         
-        if (isNewAd(adUrl) && isTitleRelevant(adTitle, query)) {
+        if (isTitleRelevant(adTitle, query)) {
           foundCount++;
-          saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo Alt");
-          sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
+          processAd(adTitle, adUrl, adPrice, mission.kategorija, "Njuškalo Alt", mission.naslov);
         }
       }
     }
@@ -261,10 +258,7 @@ function huntNjuskalo(mission) {
 // --- AUTOSCOUT24 LOVAC (Samo Austrija/Beč) ---
 function huntAutoScout24(mission) {
   let baseUrl = "https://www.autoscout24.at/lst";
-  
-  if (mission.županije && mission.županije.includes("Beč")) {
-    baseUrl += "/wien";
-  }
+  if (mission.županije && mission.županije.includes("Beč")) baseUrl += "/wien";
   
   let url = baseUrl + "?sort=age&desc=1&cy=A&powertype=hp";
   const query = mission.naslov || mission.ključna_riječ;
@@ -275,38 +269,68 @@ function huntAutoScout24(mission) {
   try {
     const response = UrlFetchApp.fetch(url, { "muteHttpExceptions": true });
     const html = response.getContentText();
-    const adRegex = /<a.*?href="(\/offers\/.*?)".*?title="(.*?)">/g;
+    // AutoScout cijena je u <p class="Price_mainPrice__...">(.*?) €</p>
+    const adRegex = /<a.*?href="(\/offers\/.*?)".*?title="(.*?)">.*?<p.*?Price_mainPrice.*?>([\d.]+)\s*€<\/p>/gs;
     let match;
     let foundCount = 0;
 
-    while ((match = adRegex.exec(html)) !== null && foundCount < 5) {
+    while ((match = adRegex.exec(html)) !== null && foundCount < 10) {
       let adUrl = "https://www.autoscout24.at" + match[1];
       let adTitle = match[2].trim();
+      let adPrice = parseInt(match[3].replace(/[^\d]/g, '')) || 0;
       
-      if (isNewAd(adUrl) && isTitleRelevant(adTitle, query)) {
+      if (isTitleRelevant(adTitle, query)) {
         foundCount++;
-        saveNewAd(adTitle, adUrl, "auto", "AutoScout24");
-        sendWhatsAppNotification(`🦈 NOVI AUTO ULOV (Austrija)!\n🎯 Misija: ${mission.naslov}\n🚗 ${adTitle}\n🔗 ${adUrl}`);
+        processAd(adTitle, adUrl, adPrice, "auto", "AutoScout24", mission.naslov);
       }
     }
   } catch (e) { Logger.log("AutoScout Error: " + e.toString()); }
 }
 
-function isNewAd(adUrl) {
+/**
+ * Obrada oglasa: Provjera novog, provjera pada cijene i notifikacija
+ */
+function processAd(title, url, price, category, source, missionName) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const dbSheet = ss.getSheetByName("Baza_Oglasa");
-  if (!dbSheet) return true;
-  
   const data = dbSheet.getDataRange().getValues();
-  // Provjeravamo zadnji stupac (Link)
-  return !data.some(row => row[6] === adUrl);
+  
+  // Nađi postoji li već link (Stupac G je index 6)
+  let existingIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][6] === url) {
+      existingIndex = i + 1; // 1-based row index
+      break;
+    }
+  }
+  
+  if (existingIndex === -1) {
+    // NOVI OGLAS
+    dbSheet.appendRow([Date.now(), title, price, category, "Izvor: " + source, "⭐⭐⭐⭐", url]);
+    sendWhatsAppNotification(`🦈 NOVI ULOV!\n🎯 Misija: ${missionName}\n📦 ${title}\n💰 Cijena: ${price}€\n🔗 ${url}`);
+  } else {
+    // POSTOJEĆI - provjeri pad cijene (Stupac C je index 2)
+    const oldPrice = parseInt(data[existingIndex-1][2]) || 0;
+    
+    if (oldPrice > 0 && price > 0 && price < oldPrice) {
+      const dropPercent = ((oldPrice - price) / oldPrice) * 100;
+      
+      if (dropPercent >= 5) {
+        // PAO PLIJEN! Ažuriraj cijenu i javi
+        dbSheet.getRange(existingIndex, 3).setValue(price);
+        sendWhatsAppNotification(`🦈 PAO JE PLIJEN! 📉 (-${dropPercent.toFixed(0)}%)\n🎯 Misija: ${missionName}\n📦 ${title}\n💰 Stara: ${oldPrice}€ -> NOVA: ${price}€\n🔗 ${url}`);
+      }
+    }
+  }
+}
+
+function isNewAd(adUrl) {
+  // Ova funkcija se više ne poziva direktno, koristi se processAd
+  return true; 
 }
 
 function saveNewAd(title, url, category, source) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  const dbSheet = ss.getSheetByName("Baza_Oglasa");
-  // ID, Naslov, Cijena, Kategorija, Opis, Ocjena, Link
-  dbSheet.appendRow([Date.now(), title, "Preuzmi u oglasu", category, "Izvor: " + source, "⭐⭐⭐⭐", url]);
+  // Ova funkcija se više ne poziva direktno, koristi se processAd
 }
 
 // ============================================================
