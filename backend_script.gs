@@ -72,3 +72,33 @@ function createResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+/**
+ * POKRENI OVU FUNKCIJU JEDNOM (Run > setupSheets)
+ * Da automatski pripremiš tablice i stupce.
+ */
+function setupSheets() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  
+  // 1. Priprema Misija
+  let sheetMisije = ss.getSheetByName('Misije');
+  if (!sheetMisije) {
+    sheetMisije = ss.insertSheet('Misije');
+  }
+  if (sheetMisije.getLastRow() === 0) {
+    sheetMisije.appendRow(['Naslov', 'Budžet', 'Kategorija', 'KM Max', 'Godište Min', 'KS', 'Ključna Riječ', 'Lokacija', 'Županije']);
+    sheetMisije.getRange("1:1").setFontWeight("bold").setBackground("#00f2ff");
+  }
+  
+  // 2. Priprema Baze Oglasa (Plijen)
+  let sheetBaza = ss.getSheetByName('Baza_Oglasa');
+  if (!sheetBaza) {
+    sheetBaza = ss.insertSheet('Baza_Oglasa');
+  }
+  if (sheetBaza.getLastRow() === 0) {
+    sheetBaza.appendRow(['ID', 'Naslov', 'Cijena', 'Kategorija', 'Opis', 'Ocjena', 'Link']);
+    sheetBaza.getRange("1:1").setFontWeight("bold").setBackground("#f39c12");
+  }
+  
+  Logger.log("✅ Tablice su spremne!");
+}
