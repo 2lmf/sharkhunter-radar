@@ -115,6 +115,126 @@ function processCounties(selection) {
   else SpreadsheetApp.getUi().alert("Stani u stupac 'Županije' (stupac I) prije pokretanja sidebara!");
 }
 
+function getMissionsFromSheet() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName('Misije');
+  if (!sheet) return [];
+
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return []; // No data or only headers
+
+  const headers = values[0].map(h => h.toString().toLowerCase().replace(/ /g, '_'));
+  return values.slice(1).map(row => {
+    let obj = {};
+    headers.forEach((h, i) => obj[h] = row[i]);
+    return obj;
+  });
+}
+
+/**
+ * GLAVNA FUNKCIJA ZA LOV
+ * Ovu funkciju treba postaviti na Trigger (Triggers > Add Trigger > Time-driven)
+ */
+function startHunting() {
+  const missions = getMissionsFromSheet();
+  Logger.log("Pokrećem lov na " + missions.length + " misija...");
+  
+  missions.forEach(mission => {
+    if (mission.kategorija === 'auto') {
+      huntAutoScout24(mission);
+    } 
+    else if (mission.kategorija === 'ostalo' || mission.kategorija === 'nekretnina' || mission.kategorija === 'zemljiste') {
+      // Za ostale kategorije koristimo Njuškalo pretragu po ključnoj riječi
+      huntNjuskalo(mission);
+    }
+  });
+}
+
+// --- NJUŠKALO LOVAC (Ostalo, Nekretnine, Bicikli...) ---
+function huntNjuskalo(mission) {
+  const query = mission.ključna_riječ || mission.naslov;
+  if (!query) return;
+
+  // Primjer: https://www.njuskalo.hr/searcher/alphabetical?keywords=bicikl&price[max]=2000
+  let url = "https://www.njuskalo.hr/searcher/alphabetical?keywords=" + encodeURIComponent(query);
+  if (mission.budžet) url += "&price%5Bmax%5D=" + mission.budžet;
+  
+  try {
+    const response = UrlFetchApp.fetch(url, { 
+      "muteHttpExceptions": true,
+      "headers": { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+    });
+    const html = response.getContentText();
+    
+    // Vrlo bazičan Regex za izvlačenje naslova i linkova (Njuškalo često mijenja strukturu)
+    // Tražimo linkove u <h3 class="entity-title">
+    const adRegex = /<h3 class="entity-title">\s*<a.*?href="(.*?)".*?>(.*?)<\/a>/g;
+    let match;
+    let foundCount = 0;
+
+    while ((match = adRegex.exec(html)) !== null && foundCount < 5) {
+      let adUrl = "https://www.njuskalo.hr" + match[1];
+      let adTitle = match[2].trim();
+      
+      if (isNewAd(adUrl)) {
+        foundCount++;
+        saveNewAd(adTitle, adUrl, mission.kategorija, "Njuškalo");
+        sendWhatsAppNotification(`🦈 NOVI ULOV (Njuškalo)!\n🎯 Misija: ${mission.naslov}\n📦 ${adTitle}\n💰 Budžet: ${mission.budžet}€\n🔗 ${adUrl}`);
+      }
+    }
+  } catch (e) {
+    Logger.log("Njuškalo Error: " + e.toString());
+  }
+}
+
+// --- AUTOSCOUT24 LOVAC (Auti) ---
+function huntAutoScout24(mission) {
+  let url = "https://www.autoscout24.at/lst?sort=age&desc=1&cy=A&powertype=hp";
+  if (mission.naslov) url += "&q=" + encodeURIComponent(mission.naslov);
+  if (mission.budžet) url += "&priceto=" + mission.budžet;
+  if (mission.godište_min) url += "&fregfrom=" + mission.godište_min;
+  
+  try {
+    const response = UrlFetchApp.fetch(url, { "muteHttpExceptions": true });
+    const html = response.getContentText();
+    
+    // Regex za AutoScout (naslov i link)
+    const adRegex = /<a.*?href="(\/offers\/.*?)".*?title="(.*?)">/g;
+    let match;
+    let foundCount = 0;
+
+    while ((match = adRegex.exec(html)) !== null && foundCount < 5) {
+      let adUrl = "https://www.autoscout24.at" + match[1];
+      let adTitle = match[2].trim();
+      
+      if (isNewAd(adUrl)) {
+        foundCount++;
+        saveNewAd(adTitle, adUrl, "auto", "AutoScout24");
+        sendWhatsAppNotification(`🦈 NOVI AUTO ULOV!\n🎯 Misija: ${mission.naslov}\n🚗 ${adTitle}\n🔗 ${adUrl}`);
+      }
+    }
+  } catch (e) {
+    Logger.log("AutoScout Error: " + e.toString());
+  }
+}
+
+function isNewAd(adUrl) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const dbSheet = ss.getSheetByName("Baza_Oglasa");
+  if (!dbSheet) return true;
+  
+  const data = dbSheet.getDataRange().getValues();
+  // Provjeravamo zadnji stupac (Link)
+  return !data.some(row => row[6] === adUrl);
+}
+
+function saveNewAd(title, url, category, source) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const dbSheet = ss.getSheetByName("Baza_Oglasa");
+  // ID, Naslov, Cijena, Kategorija, Opis, Ocjena, Link
+  dbSheet.appendRow([Date.now(), title, "Preuzmi u oglasu", category, "Izvor: " + source, "⭐⭐⭐⭐", url]);
+}
+
 // ============================================================
 // 2. WEB API (Sinkronizacija s aplikacijom)
 // ============================================================
