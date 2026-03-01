@@ -17,32 +17,36 @@ const WHATSAPP_API_KEY = "6205398";
  * Ako odabereš novu županiju, on je dodaje na postojeću (umjesto da je zamijeni).
  */
 function onEdit(e) {
+  if (!e) return;
   const sheet = e.source.getActiveSheet();
   const range = e.range;
   
+  // Stupac I (9) u tabu s misijama
   if (range.getColumn() === 9 && range.getRow() > 1) {
     const newValue = e.value;
     const oldValue = e.oldValue;
     
     if (!newValue || newValue === "") return;
     
-    // Ako se odabere "SVE", makni sve ostalo
+    // Ako se odabere "SVE", očisti sve ostalo
     if (newValue === "SVE") {
       range.setValue("SVE");
       return;
     }
     
+    // Ako je prije bilo "SVE", zamijeni ga novom vrijednošću
+    if (oldValue === "SVE") {
+      range.setValue(newValue);
+      return;
+    }
+
     if (oldValue && oldValue !== "") {
-      // Ako je prije pisalo "SVE", a sad se bira nešto drugo, makni "SVE"
-      if (oldValue === "SVE") {
-        range.setValue(newValue);
-        return;
-      }
-      
-      if (oldValue.indexOf(newValue) === -1) {
+      // Spriječimo duplanje iste vrijednosti
+      const values = oldValue.split(", ").map(v => v.trim());
+      if (values.indexOf(newValue) === -1) {
         range.setValue(oldValue + ", " + newValue);
       } else {
-        // Dropdown multi-select standard: ako već postoji, ne dopisuj ponovno
+        // Ako je korisnik odabrao nešto što već postoji, ostavi staro (ne dopisuj)
         range.setValue(oldValue);
       }
     }
@@ -53,6 +57,8 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('🦈 SharkHunter')
     .addItem('Pripremi Tablicu (v2.5)', 'setupSheet')
     .addItem('Odaberi Županije (Sidebar)', 'showCountySidebar')
+    .addSeparator()
+    .addItem('🚀 POKRENI LOV ODMAH', 'startHunting')
     .addToUi();
 }
 
@@ -63,7 +69,7 @@ function setupSheet() {
   const headers = ["Naslov", "Budžet", "Kategorija", "KM_Max", "Godište_Min", "KS", "Ključna_Riječ", "Lokacija", "Županije"];
   
   const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-  if (currentHeaders[0] === "") {
+  if (!currentHeaders[0] || currentHeaders[0] === "") {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#00f2ff");
   }
@@ -74,11 +80,11 @@ function setupSheet() {
     .build();
   sheet.getRange("C2:C100").setDataValidation(categoryRule);
   
-  // Dodano "SVE" na početak popisa
   const regions = ["SVE", "Austrija", "Beč", "Grad Zagreb", "Zagrebačka", "Krapinsko-zagorska", "Sisačko-moslavačka", "Karlovačka", "Varaždinska", "Koprivničko-križevačka", "Bjelovarsko-bilogorska", "Primorsko-goranska", "Ličko-senjska", "Virovitičko-podravska", "Požeško-slavonska", "Brodsko-posavska", "Zadarska", "Osječko-baranjska", "Šibensko-kninska", "Vukovarsko-srijemska", "Splitsko-dalmatinska", "Istarska", "Dubrovačko-neretvanska", "Međimurska"];
   const regionRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(regions)
-    .setAllowInvalid(true)
+    .setAllowInvalid(true) // OVO MORA BITI TRUE ZA MULTI-SELECT
+    .setHelpText("Odaberi jednu ili više županija (nizat će se u ćeliji)")
     .build();
   sheet.getRange("I2:I100").setDataValidation(regionRule);
 
