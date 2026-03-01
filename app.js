@@ -261,8 +261,32 @@ function updateFormFields(category, container) {
                 </div>
             </div>
         `;
-        countyArea.innerHTML = '';
-        locGroup.style.display = 'none';
+        countyArea.innerHTML = `
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <label style="margin: 0;">ŽUPANIJE</label>
+                    <button type="button" id="btn-select-all-counties" class="chip" style="font-size: 0.6rem; padding: 0.2rem 0.5rem;">Označi sve</button>
+                </div>
+                <div class="county-grid">
+                    ${COUNTIES.map((c, i) => `
+                        <div class="county-item">
+                            <input type="checkbox" id="county-${i}" value="${c}" class="county-checkbox">
+                            <label for="county-${i}">${c}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        const btnSelectAll = document.getElementById('btn-select-all-counties');
+        if (btnSelectAll) {
+            btnSelectAll.onclick = () => {
+                const checkboxes = document.querySelectorAll('.county-checkbox');
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                checkboxes.forEach(cb => cb.checked = !allChecked);
+                btnSelectAll.textContent = allChecked ? "Označi sve" : "Odznači sve";
+            };
+        }
+        locGroup.style.display = 'block';
     } else {
         container.innerHTML = `
             <div class="form-row">
@@ -341,16 +365,34 @@ async function saveMission(form) {
 
     // Push to Cloud if enabled
     if (syncUrl) {
+        // Obavijest korisniku da je slanje u tijeku
+        const syncBadge = document.createElement('div');
+        syncBadge.style.cssText = "position:fixed; top:20px; right:20px; background:var(--accent-cyan); color:#000; padding:10px; border-radius:10px; z-index:9999; font-size:0.8rem; font-family:Orbitron;";
+        syncBadge.textContent = "SENDING TO CLOUD...";
+        document.body.appendChild(syncBadge);
+
         try {
-            await fetch(syncUrl, {
+            // Google Apps Script POST with no-cors doesn't allow many headers, 
+            // but we can send data via URL params or a simplified body.
+            // For full reliability with no-cors, URL params are sometimes better,
+            // but let's try a clean POST first.
+            const response = await fetch(syncUrl, {
                 method: "POST",
                 mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
+                cache: "no-cache",
+                headers: { "Content-Type": "text/plain" }, // Standard trick for GAS
                 body: JSON.stringify({ action: "addMission", mission: newMission })
             });
-            console.log("Local mission pushed to cloud.");
+
+            console.log("Sync request sent (no-cors mode).");
+            syncBadge.style.background = "#2ecc71";
+            syncBadge.textContent = "SYNC SENT! ☁️";
+            setTimeout(() => syncBadge.remove(), 3000);
         } catch (err) {
             console.error("Cloud push failed:", err);
+            syncBadge.style.background = "var(--accent-red)";
+            syncBadge.textContent = "SYNC FAILED!";
+            setTimeout(() => syncBadge.remove(), 3000);
         }
     }
 }
