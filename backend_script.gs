@@ -37,7 +37,10 @@ function setupSheet() {
   
   // Validacija Županija (Pojedinačni odabir za ćeliju, Sidebar služi za Multi)
   const regions = ["Austrija", "Beč", "Grad Zagreb", "Zagrebačka", "Krapinsko-zagorska", "Sisačko-moslavačka", "Karlovačka", "Varaždinska", "Koprivničko-križevačka", "Bjelovarsko-bilogorska", "Primorsko-goranska", "Ličko-senjska", "Virovitičko-podravska", "Požeško-slavonska", "Brodsko-posavska", "Zadarska", "Osječko-baranjska", "Šibensko-kninska", "Vukovarsko-srijemska", "Splitsko-dalmatinska", "Istarska", "Dubrovačko-neretvanska", "Međimurska"];
-  const regionRule = SpreadsheetApp.newDataValidation().requireValueInList(regions).build();
+  const regionRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(regions)
+    .setAllowInvalid(true) // Dopušta multi-select iz sidebara
+    .build();
   sheet.getRange("I2:I100").setDataValidation(regionRule);
 
   // Tab: Baza Oglasa
