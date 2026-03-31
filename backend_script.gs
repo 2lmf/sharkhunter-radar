@@ -170,21 +170,30 @@ function getMissionsFromSheet() {
 }
 
 function startHunting() {
+  const START_TIME = Date.now();
+  const MAX_RUNTIME = 4 * 60 * 1000; // 4 minute max (sigurnosna margina do 6min limita)
+
   const missions = getMissionsFromSheet();
   Logger.log("Pokrećem lov na " + missions.length + " misija...");
-  
-  missions.forEach(mission => {
-    // 1. NJUŠKALO: Traži sve (auti, bicikli, nekretnine...) na domaćem terenu
+
+  for (const mission of missions) {
+    // Provjeri ima li još vremena
+    if (Date.now() - START_TIME > MAX_RUNTIME) {
+      Logger.log("⏱️ Timeout zaštita — zaustavljam lov.");
+      break;
+    }
+
     huntNjuskalo(mission);
 
-    // 2. AUTOSCOUT24: Samo za aute i samo ako je odabrana Austrija ili Beč
+    if (Date.now() - START_TIME > MAX_RUNTIME) break;
+
     if (mission.kategorija === 'auto') {
       const zupanije = mission.županije || "";
       if (zupanije.includes("Austrija") || zupanije.includes("Beč")) {
         huntAutoScout24(mission);
       }
     }
-  });
+  }
 }
 
 function isTitleRelevant(title, query) {
@@ -207,15 +216,20 @@ function huntNjuskalo(mission) {
   if (mission.budžet) url += "&price%5Bmax%5D=" + mission.budžet;
   
   try {
-    const response = UrlFetchApp.fetch(url, { 
+    const response = UrlFetchApp.fetch(url, {
       "muteHttpExceptions": true,
-      "headers": { 
+      "followRedirects": true,
+      "deadline": 20, // max 20 sekundi čekanja po requestu
+      "headers": {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
       }
     });
-    
-    if (response.getResponseCode() !== 200) return;
+
+    if (response.getResponseCode() !== 200) {
+      Logger.log("Njuškalo HTTP " + response.getResponseCode() + " za: " + query);
+      return;
+    }
     const html = response.getContentText();
     
     // Regex hvatamo naslov, link i cijenu
